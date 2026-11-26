@@ -1,0 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; --ink: #17362d; --muted: #65746d; --paper: #f5f4ee; --green: #315b45; --lime: #d9ef7b; --line: #e7e8df; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+.display { font-family: 'Manrope', sans-serif; letter-spacing: -.045em; }
+.page-grid { background-image: radial-gradient(#d5d8cd 0.7px, transparent 0.7px); background-size: 16px 16px; }
+.soft-shadow { box-shadow: 0 16px 55px rgba(38, 58, 46, .07); }
+.meter-track { background: #e8eae1; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+::selection { background: #d9ef7b; color: #17362d; }

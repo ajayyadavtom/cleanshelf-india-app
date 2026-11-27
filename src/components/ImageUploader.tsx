@@ -12,14 +12,44 @@ async function downscale(file: File): Promise<Blob> {
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
   return await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare this image.")), "image/jpeg", 0.88));
 }
+
+async function readAnalysisResponse(response: Response): Promise<AnalysisResult> {
+  const body = await response.text();
+  let data: unknown;
+
+  try {
+    data = body ? JSON.parse(body) : null;
+  } catch {
+    const message = response.status >= 500
+      ? "The image-analysis server returned an unexpected error. Try again in a minute. If it keeps happening, check the Vercel function logs."
+      : "The server returned an unreadable response. Please try again.";
+    throw new Error(message);
+  }
+
+  if (!response.ok) {
+    const message = typeof data === "object" && data !== null && "error" in data && typeof data.error === "string"
+      ? data.error
+      : response.status >= 500
+        ? "The image-analysis server could not finish this request. Try again in a minute."
+        : `Image analysis failed (HTTP ${response.status}). Please try again.`;
+    throw new Error(message);
+  }
+
+  if (typeof data !== "object" || data === null || !("products" in data)) {
+    throw new Error("The server returned an incomplete analysis. Please try again.");
+  }
+
+  return data as AnalysisResult;
+}
+
 export function ImageUploader({ mode, profile, language, busy, onBusy, onResult, onError }: { mode: AnalysisMode; profile: UserProfile; language: Language; busy: boolean; onBusy: (value: boolean) => void; onResult: (value: AnalysisResult) => void; onError: (value: string) => void }) {
   const ref = useRef<HTMLInputElement>(null); const [filename, setFilename] = useState("");
   async function submit(file?: File) {
     if (!file) return; setFilename(file.name); onError(""); onBusy(true);
     try {
       const image = await downscale(file); const body = new FormData(); body.append("image", image, "cleanshelf-upload.jpg"); body.append("mode", mode); body.append("userProfile", profile); body.append("language", language);
-      const response = await fetch("/api/analyze", { method: "POST", body }); const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Analysis failed. Please try again."); onResult(data as AnalysisResult);
+      const response = await fetch("/api/analyze", { method: "POST", body });
+      onResult(await readAnalysisResponse(response));
     } catch (error) { onError(error instanceof Error ? error.message : "Analysis failed. Check your connection and try again."); }
     finally { onBusy(false); if (ref.current) ref.current.value = ""; }
   }

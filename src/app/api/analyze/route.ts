@@ -56,10 +56,11 @@ export async function POST(request: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return Response.json({ error: "Image analysis is not configured. Set GEMINI_API_KEY on the server." }, { status: 503 });
 
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-      contents: [{ role: "user", parts: [{ text: buildImagePrompt(input.mode, input.language, input.profile) }, { inlineData: { mimeType: input.mimeType, data: input.bytes.toString("base64") } }] }],
+    const primaryModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash-lite";
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 20_000, retryOptions: { attempts: 1 } } });
+    const modelRequest = {
+      contents: [{ role: "user" as const, parts: [{ text: buildImagePrompt(input.mode, input.language, input.profile) }, { inlineData: { mimeType: input.mimeType, data: input.bytes.toString("base64") } }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: ANALYSIS_RESPONSE_SCHEMA,
@@ -67,7 +68,17 @@ export async function POST(request: Request) {
         maxOutputTokens: 4096,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
-    });
+    };
+
+    let response;
+    try {
+      response = await ai.models.generateContent({ model: primaryModel, ...modelRequest });
+    } catch (primaryError) {
+      const status = typeof primaryError === "object" && primaryError !== null && "status" in primaryError && typeof primaryError.status === "number" ? primaryError.status : 0;
+      if (![500, 502, 503, 504].includes(status) || fallbackModel === primaryModel) throw primaryError;
+      console.warn(`Gemini model ${primaryModel} unavailable; retrying with ${fallbackModel}.`);
+      response = await ai.models.generateContent({ model: fallbackModel, ...modelRequest });
+    }
 
     if (!response.text) return Response.json({ error: "The image could not be read clearly. Try a closer, brighter photo." }, { status: 422 });
     let parsed: unknown;

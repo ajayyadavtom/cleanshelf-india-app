@@ -1,0 +1,3 @@
+"use client";
+import type { ProductAnalysis } from "@/types/analysis";
+export function ProductTabs({ products, selected, onSelect }: { products: ProductAnalysis[]; selected: number; onSelect: (value: number) => void }) { if (products.length < 2) return null; return <div className="overflow-x-auto"><div role="tablist" aria-label="Products found" className="flex min-w-max gap-2">{products.map((product,index)=><button key={product.productName+index} role="tab" aria-selected={selected===index} onClick={()=>onSelect(index)} className={`max-w-56 truncate rounded-xl px-4 py-2.5 text-sm font-semibold ${selected===index?"bg-stone-900 text-white":"bg-white text-stone-600 ring-1 ring-stone-200"}`}>{index+1}. {product.productName}</button>)}</div></div>; }

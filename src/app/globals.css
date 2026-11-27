@@ -3,6 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
 :root { color-scheme: light; --ink: #17362d; --muted: #65746d; --paper: #f5f4ee; --green: #315b45; --lime: #d9ef7b; --line: #e7e8df; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }

@@ -1,0 +1,13 @@
+"use client";
+import { Download } from "lucide-react";
+import type { AnalysisResult, ProductAnalysis } from "@/types/analysis";
+import { roundedRect, wrapCanvasText, formatInr } from "@/lib/ui";
+export function ShareableComparisonCard({ result, product }: { result: AnalysisResult; product: ProductAnalysis }) {
+ function download(){const c=document.createElement("canvas");c.width=1080;c.height=1350;const x=c.getContext("2d");if(!x)return;
+ x.fillStyle="#f5f4ee";x.fillRect(0,0,c.width,c.height);x.fillStyle="#08785f";x.font="700 30px system-ui";x.fillText("CLEANSHELF INDIA",72,88);x.fillStyle="#18221c";x.font="700 56px system-ui";x.fillText("Your label snapshot",72,172);
+ roundedRect(x,64,220,952,310,32);x.fillStyle="#fff";x.fill();x.fillStyle="#183d2c";x.font="700 42px system-ui";x.fillText(product.verdict,100,292);x.font="700 34px system-ui";x.fillText(product.productName.slice(0,35),100,354);x.fillStyle="#526158";x.font="24px system-ui";x.fillText(`Oil quality ${product.oilQualityScore}/100   ·   NOVA ${product.processingLevelNova || "?"}   ·   Additives ${product.additiveLoad}`,100,412);x.fillText(`${product.regulatoryMatches.length} catalog matches · ${Math.round(product.confidence*100)}% read confidence`,100,468);
+ x.fillStyle="#18221c";x.font="700 32px system-ui";x.fillText("Your cart & shelf estimates",72,610);roundedRect(x,64,645,952,190,26);x.fillStyle="#fff";x.fill();x.fillStyle="#183d2c";x.font="700 28px system-ui";x.fillText(`${result.weeklyTotals.refinedOilMl} ml refined oil  ·  ${result.weeklyTotals.addedSugarTeaspoons} tsp added sugar`,96,712);x.fillText(`Spend estimate ${formatInr(result.weeklyTotals.spendInr)}  ·  ${result.weeklyTotals.additiveLoad} additive load`,96,772);
+ x.fillStyle="#18221c";x.font="700 32px system-ui";x.fillText("A swap for the same craving",72,930);x.fillStyle="#08785f";x.font="700 30px system-ui";x.fillText(`${product.swaps.wholeFood.name} · ${formatInr(product.swaps.wholeFood.priceInr)}`,72,990);x.fillStyle="#526158";x.font="24px system-ui";wrapCanvasText(x,"Estimates are based on visible label evidence. Ingredient permissions depend on food category and use. This is consumer information, not medical or legal advice.",72,1072,900,36);x.fillStyle="#718078";x.font="20px system-ui";x.fillText("cleanshelf-india · Check the current pack and local price",72,1274);
+ const a=document.createElement("a");a.download="cleanshelf-comparison.png";a.href=c.toDataURL("image/png");a.click(); }
+ return <button onClick={download} className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900"><Download size={16}/>Download comparison card</button>;
+}

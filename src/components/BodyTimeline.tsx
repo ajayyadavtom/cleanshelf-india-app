@@ -1,0 +1,5 @@
+import { Clock3, Repeat2, Sprout } from "lucide-react";
+import type { ProductAnalysis } from "@/types/analysis";
+export function BodyTimeline({ product }: { product: ProductAnalysis }) { const steps = [[Clock3,"30 minutes",product.bodyImpactTimeline.thirtyMinutes],[Repeat2,"30 days · daily",product.bodyImpactTimeline.thirtyDaysDaily],[Sprout,"Long-term pattern",product.bodyImpactTimeline.longTermPattern]] as const;
+ return <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="font-bold text-stone-900">Inside your body</h3><p className="mt-1 text-xs text-stone-500">Grounded context, not an individual prediction</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{steps.map(([Icon,title,body],i)=><article key={title} className="relative rounded-2xl bg-stone-50 p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><Icon size={18}/></span><p className="mt-3 text-sm font-bold text-stone-800">{title}</p><p className="mt-1 text-xs leading-5 text-stone-600">{body}</p></article>)}</div></section>;
+}

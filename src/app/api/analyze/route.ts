@@ -84,8 +84,16 @@ export async function POST(request: Request) {
     let parsed: unknown;
     try { parsed = JSON.parse(response.text); }
     catch { return Response.json({ error: "Gemini returned an incomplete extraction. Please try again." }, { status: 502 }); }
+    const imageStatus = typeof parsed === "object" && parsed !== null && "imageAssessment" in parsed && typeof parsed.imageAssessment === "object" && parsed.imageAssessment !== null && "status" in parsed.imageAssessment && typeof parsed.imageAssessment.status === "string"
+      ? parsed.imageAssessment.status
+      : "unclear";
+    if (imageStatus === "non_food") return Response.json({ error: "This looks like a medicine or another non-food item. CleanShelf analyzes packaged foods only; it cannot assess medicines." }, { status: 422 });
+    if (imageStatus === "food_front") return Response.json({ error: "I can see a food product, but not its ingredient or nutrition panel. Please upload a clear photo of the back label. I won't guess ingredients from the product name." }, { status: 422 });
+    if (imageStatus !== "food_label") return Response.json({ error: "I couldn't confirm a readable packaged-food label in this photo. Try a sharp, well-lit photo of the back panel." }, { status: 422 });
     const extraction = normalizeExtraction(parsed, input.mode);
     if (extraction.products.length === 0) return Response.json({ error: "No products could be read. Keep the ingredients and nutrition panel in focus and try again." }, { status: 422 });
+    if (extraction.products.some((product) => product.ingredients.length === 0)) return Response.json({ error: "The ingredient list isn't readable enough to verify the product. Please upload a clear photo of the back label." }, { status: 422 });
+    if (extraction.products.some((product) => product.confidence < 0.55)) return Response.json({ error: "The product or label text is too uncertain to give a reliable analysis. Move closer, avoid glare, and include the full ingredients and nutrition panels." }, { status: 422 });
     return Response.json(runEngine(extraction, input.profile, input.language));
   } catch (error) {
     console.error("CleanShelf analysis failed", error);
@@ -95,6 +103,7 @@ export async function POST(request: Request) {
     if (status === 429) return Response.json({ error: "Gemini's quota or request limit has been reached. Wait for the quota reset or review the project's API limits and billing." }, { status: 429 });
     if (status === 503) return Response.json({ error: "Gemini is temporarily at capacity. Please try again in a few minutes." }, { status: 503 });
     if (status === 400) return Response.json({ error: "Gemini rejected this image request. Check the image format and model configuration." }, { status: 422 });
+    if (status === 0) return Response.json({ error: "The image-analysis request timed out or lost its connection to Gemini. Try again with a clear, smaller photo." }, { status: 502 });
     return Response.json({ error: "Gemini could not analyze this image. Check your connection and try again." }, { status: 502 });
   }
 }

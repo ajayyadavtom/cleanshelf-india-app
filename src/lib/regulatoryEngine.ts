@@ -109,7 +109,7 @@ export function runEngine(extraction: ModelExtraction, profile: UserProfile, lan
       regulatoryMatches: entries,
       comparison: comparisonFor(raw, entries),
       bodyImpactTimeline: impactTimeline(raw, profile),
-      swaps: matchSwaps(raw.craving as Craving, raw.estimatedPriceInr > 0 ? raw.estimatedPriceInr : undefined),
+      swaps: matchSwaps(raw.craving as Craving, raw.estimatedPriceInr > 0 ? raw.estimatedPriceInr : undefined, raw.productName),
     };
   });
 

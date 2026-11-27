@@ -1,9 +1,11 @@
 export type Craving = "crunchy_salty" | "sweet" | "crispy" | "drink";
+export type SwapGroup = "biscuit" | "chocolate";
 export type NaturalSwap = {
   id: string;
   name: string;
   type: "clean_packaged" | "whole_food";
   craving: Craving[];
+  productGroups?: SwapGroup[];
   priceInr: number;
   typicalPack: string;
   description: string;
@@ -37,10 +39,20 @@ export const NATURAL_SWAPS: NaturalSwap[] = [
   { id: "single-date-pack", name: "Single-ingredient dates (pack)", type: "clean_packaged", craving: ["sweet"], priceInr: 30, typicalPack: "50 g", description: "A compact sweet option; dried fruit is concentrated, so portion size matters.", ingredients: "Dates; confirm no syrup or preservatives are added.", preservativeFree: true, shelfAvailability: "Kirana and supermarket", tags: ["no added sugar", "check label"] },
   { id: "plain-curd-cup", name: "Plain unsweetened curd cup", type: "clean_packaged", craving: ["sweet", "drink"], priceInr: 25, typicalPack: "100 g", description: "Add fresh fruit at home; compare ingredients and sugar on the current cup.", ingredients: "Milk and cultures; check the pack.", preservativeFree: true, shelfAvailability: "Dairy counter and quick-commerce", tags: ["unsweetened", "check label"] },
   { id: "plain-coconut-water-pack", name: "Unsweetened coconut water", type: "clean_packaged", craving: ["drink"], priceInr: 35, typicalPack: "200 ml", description: "Look for a short ingredient list and no added sugar or preservatives.", ingredients: "Coconut water; check the current pack.", preservativeFree: true, shelfAvailability: "Supermarket and quick-commerce", tags: ["check label"] },
+  { id: "short-label-biscuits", name: "Short-label wholegrain biscuits", type: "clean_packaged", craving: ["sweet"], productGroups: ["biscuit"], priceInr: 35, typicalPack: "small pack", description: "A like-for-like biscuit option. Check the exact pack for wholegrain flour, oils, sugar and preservatives before buying.", ingredients: "Varies by brand; verify the current label.", preservativeFree: true, shelfAvailability: "Kirana, supermarket or quick-commerce", tags: ["biscuit", "check label"] },
+  { id: "homemade-atta-biscuits", name: "Homemade atta biscuits", type: "whole_food", craving: ["sweet"], productGroups: ["biscuit"], priceInr: 30, typicalPack: "small batch", description: "A biscuit-style kitchen swap. Make at home with atta, a measured amount of jaggery and ghee; the recipe still contains added sugar and fat.", ingredients: "Atta, jaggery and ghee; recipe amounts vary.", preservativeFree: true, shelfAvailability: "Home kitchen", tags: ["biscuit", "home-made"] },
 ];
 
-export function matchSwaps(craving: Craving, budgetInr?: number): { packaged: NaturalSwap; wholeFood: NaturalSwap } {
-  const candidates = NATURAL_SWAPS.filter((item) => item.craving.includes(craving));
+export function inferSwapGroup(productName: string): SwapGroup | undefined {
+  if (/\b(biscuit|biscuits|cookie|cookies|wafer|wafers)\b/i.test(productName)) return "biscuit";
+  if (/\b(chocolate|cocoa|brownie)\b/i.test(productName)) return "chocolate";
+  return undefined;
+}
+
+export function matchSwaps(craving: Craving, budgetInr?: number, productName?: string): { packaged: NaturalSwap; wholeFood: NaturalSwap } {
+  const group = productName ? inferSwapGroup(productName) : undefined;
+  const groupCandidates = group ? NATURAL_SWAPS.filter((item) => item.productGroups?.includes(group) && item.craving.includes(craving)) : [];
+  const candidates = groupCandidates.length ? groupCandidates : NATURAL_SWAPS.filter((item) => item.craving.includes(craving));
   const withinBudget = budgetInr == null ? candidates : candidates.filter((item) => item.priceInr <= budgetInr);
   const pool = withinBudget.length ? withinBudget : candidates;
   const packaged = pool.find((item) => item.type === "clean_packaged") ?? candidates[0];
@@ -56,7 +68,9 @@ export function buildBudgetMatchedCart(items: ReplacementCartInput[]) {
   const budgetKnown = items.length > 0 && items.every((item) => item.estimatedPriceInr > 0);
   const budgetInr = budgetKnown ? items.reduce((sum, item) => sum + item.estimatedPriceInr * Math.max(1, item.quantity), 0) : 0;
   const lines: ReplacementCartLine[] = items.flatMap((item) => {
-    const candidates = NATURAL_SWAPS.filter((swap) => swap.craving.includes(item.craving) && swap.type === "whole_food").sort((a, b) => a.priceInr - b.priceInr);
+    const group = inferSwapGroup(item.productName);
+    const groupCandidates = group ? NATURAL_SWAPS.filter((swap) => swap.productGroups?.includes(group) && swap.craving.includes(item.craving) && swap.type === "whole_food") : [];
+    const candidates = (groupCandidates.length ? groupCandidates : NATURAL_SWAPS.filter((swap) => swap.craving.includes(item.craving) && swap.type === "whole_food")).sort((a, b) => a.priceInr - b.priceInr);
     const eligible = budgetKnown ? candidates.filter((swap) => swap.priceInr <= item.estimatedPriceInr) : candidates;
     const replacement = eligible[0];
     if (!replacement) return [];

@@ -5,6 +5,13 @@ import type { AnalysisMode, ModelExtraction, ModelProductExtraction } from "@/ty
 export const ANALYSIS_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
+    imageAssessment: {
+      type: Type.OBJECT,
+      properties: {
+        status: { type: Type.STRING, enum: ["food_label", "food_front", "non_food", "unclear"] },
+      },
+      required: ["status"],
+    },
     products: {
       type: Type.ARRAY,
       items: {
@@ -30,12 +37,14 @@ export const ANALYSIS_RESPONSE_SCHEMA = {
       },
     },
   },
-  required: ["products"],
+  required: ["imageAssessment", "products"],
 };
 
 export function buildImagePrompt(mode: AnalysisMode, language: string, profile: string): string {
   const languageName = ({ en: "English", hi: "Hindi", kn: "Kannada", te: "Telugu" } as Record<string, string>)[language] ?? "English";
-  return `Read this Indian packaged-food image. Mode: ${mode}. Consumer profile: ${profile}. Write nutritionHighlights in ${languageName}; keep printed ingredient names as they appear. Return only the required JSON schema.
+  return `First classify the submitted image, then extract only visible evidence. Mode: ${mode}. Consumer profile: ${profile}. Write nutritionHighlights in ${languageName}; keep printed ingredient names as they appear. Return only the required JSON schema.
+
+Set imageAssessment.status to exactly one of: food_label (a packaged food and its ingredient list is visibly readable), food_front (a food product is visible but its ingredient list is not readable), non_food (medicine, supplement, cosmetic, household item, or other non-food object), unclear (you cannot confidently tell). A medicine is never a food, snack, or source of edible oil. For food_front, non_food, or unclear, return products as an empty array. Do not identify ingredients from memory, brand knowledge, or the front of a pack. Confidence must reflect legibility and identification from visible pixels, not how familiar you are with the brand.
 
 Extract visible evidence only. Do not invent brands, products, ingredients, nutrition values, prices or pack quantities. In cart/shelf mode report at most 12 distinguishable products. If text cannot be read, use an empty string/list or zero and reduce confidence.
 

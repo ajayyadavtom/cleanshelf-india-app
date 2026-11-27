@@ -18,8 +18,10 @@ Production: `npm run build`, then `npm start`.
 ## Analysis notes
 
 - The API accepts one JPEG, PNG or WebP image up to 8 MB. It supports a single label or a cart/shelf image and English, Hindi, Kannada or Telugu summaries.
+- A clear front photo can identify a product and trigger Google Search grounding for the exact India-market variant, ingredient list and cited web sources. This requires Google Search grounding quota on the Gemini project; a quota error is shown instead of inventing ingredients. Grounding search usage may incur Google charges after included quota.
+- Packaged swap cards link to live Google Shopping and Google Images results. When Open Food Facts has a matching India-listed pack image, the card shows that community-submitted image and links to its product record; unmatched recommendations use an image-search link.
 - Gemini extracts visible label information and estimates. The server attaches matches from `src/data/regulatoryDb.ts`; unmatched ingredients are not assigned invented legal status.
-- The analyzer rejects medicine/non-food images, front-only packs, unreadable ingredient panels and low-confidence reads. It requires a visible ingredient list and does not infer a recipe from a product name. Product-specific biscuit swaps are matched to biscuits; other swaps use the detected craving category.
+- The analyzer rejects medicine/non-food images and low-confidence reads. Back-label scans require a visible ingredient list. Front-only food packs use Google Search grounding and are accepted only when the exact India-market variant and ingredients can be verified; otherwise the app asks for the back label. Product-specific biscuit swaps are matched to biscuits; other swaps use the detected craving category.
 - Regulatory permissions depend on food category, amount, use and current amendments. The local catalog is a consumer reference, not a legal compliance decision. See the official source links in that file.
 - Refined-oil volume cannot be calculated from total fat alone. Cart totals state their basis and treat visible quantities as a week's purchases, not verified consumption.
 - EU formulation comparisons are not presented as exact product comparisons without a counterpart label. Verified rule differences are separated from general market patterns.

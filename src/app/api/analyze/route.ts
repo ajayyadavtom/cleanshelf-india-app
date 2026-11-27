@@ -1,5 +1,7 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { buildImagePrompt, ANALYSIS_RESPONSE_SCHEMA, normalizeExtraction } from "@/lib/geminiSchema";
+import { WEB_PRODUCT_RESPONSE_SCHEMA } from "@/lib/webProductResearch";
+import { attachSwapImages } from "@/lib/openFoodFacts";
 import { MAX_IMAGE_BYTES } from "@/lib/constants";
 import { runEngine } from "@/lib/regulatoryEngine";
 import type { AnalysisMode, Language, UserProfile } from "@/types/analysis";
@@ -89,13 +91,54 @@ export async function POST(request: Request) {
       ? parsed.imageAssessment.status
       : "unclear";
     if (imageStatus === "non_food") return Response.json({ error: "This looks like a medicine or another non-food item. CleanShelf analyzes packaged foods only; it cannot assess medicines." }, { status: 422 });
-    if (imageStatus === "food_front") return Response.json({ error: "I can see a food product, but not its ingredient or nutrition panel. Please upload a clear photo of the back label. I won't guess ingredients from the product name." }, { status: 422 });
-    if (imageStatus !== "food_label") return Response.json({ error: "I couldn't confirm a readable packaged-food label in this photo. Try a sharp, well-lit photo of the back panel." }, { status: 422 });
+    if (imageStatus === "unclear") return Response.json({ error: "I couldn't confirm this is a packaged food. Try a clearer photo of the product front." }, { status: 422 });
     const extraction = normalizeExtraction(parsed, input.mode);
     if (extraction.products.length === 0) return Response.json({ error: "No products could be read. Keep the ingredients and nutrition panel in focus and try again." }, { status: 422 });
-    if (extraction.products.some((product) => product.ingredients.length === 0)) return Response.json({ error: "The ingredient list isn't readable enough to verify the product. Please upload a clear photo of the back label." }, { status: 422 });
     if (extraction.products.some((product) => product.confidence < 0.55)) return Response.json({ error: "The product or label text is too uncertain to give a reliable analysis. Move closer, avoid glare, and include the full ingredients and nutrition panels." }, { status: 422 });
-    return Response.json(runEngine(extraction, input.profile, input.language));
+
+    if (imageStatus === "food_front") {
+      const searchAi = new GoogleGenAI({ apiKey, httpOptions: { timeout: 20_000 } });
+      const visibleNames = extraction.products.map((product) => `${product.brand} ${product.productName} ${product.packSize}`.trim()).join("\n");
+      let researchResponse;
+      try {
+        researchResponse = await searchAi.models.generateContent({
+          model: primaryModel,
+          contents: `Use Google Search to identify the exact packaged food shown, sold in India. Visible names from the photo:\n${visibleNames}\n\nSearch for the exact Indian-market brand and variant, prioritizing the manufacturer or Indian retailer pages that show the ingredient panel. Report only facts explicitly present in those sources: exact match/variant, ingredient list, oil names, INS numbers and nutrition figures. Do not copy facts from a foreign variant or a merely similar product. If the exact Indian product cannot be confirmed, say that clearly. Then name up to two simpler Indian alternatives for the same craving and cite retailer/product pages where available.`,
+          config: { tools: [{ googleSearch: {} }], maxOutputTokens: 1800, temperature: 0.1 },
+        });
+      } catch (error) {
+        const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 0;
+        if (status === 429) return Response.json({ error: "Google product lookup has reached this Gemini project's Search quota. Enable Google Search grounding/billing for the API project, then retry. A photo of the ingredients panel still works without web lookup." }, { status: 503 });
+        if (status === 401 || status === 403) return Response.json({ error: "This Gemini API project cannot use Google Search grounding. Check its AI Studio Search quota and billing settings." }, { status: 503 });
+        if (status === 503) return Response.json({ error: "Google Search is temporarily unavailable. Please try again shortly." }, { status: 503 });
+        throw error;
+      }
+
+      const sources = (researchResponse.candidates ?? []).flatMap((candidate) => candidate.groundingMetadata?.groundingChunks ?? []).flatMap((chunk) => {
+        const web = chunk.web;
+        return web?.uri && /^https:\/\//i.test(web.uri) ? [{ title: web.title || new URL(web.uri).hostname, url: web.uri }] : [];
+      }).filter((source, index, all) => all.findIndex((item) => item.url === source.url) === index).slice(0, 8);
+      if (!researchResponse.text || sources.length === 0) return Response.json({ error: "Google couldn't verify this exact Indian product from reliable search results. Upload the back ingredient panel for a label-based read." }, { status: 422 });
+
+      const structured = await ai.models.generateContent({
+        model: primaryModel,
+        contents: `Convert the grounded Google Search report into product fields. Use ONLY the report and source list below; do not use model memory. Set exactProductMatch=true only when the report confirms the same Indian brand and exact variant visible in the photo. For any uncertain or foreign variant, set false and return no products. Include ingredient names only if the report explicitly states them. Keep oil volume and added sugar at 0 unless the report gives a defensible per-pack amount.\n\nGROUNDING REPORT:\n${researchResponse.text}\n\nACTUAL GOOGLE SOURCE URLS:\n${sources.map((source) => `${source.title}: ${source.url}`).join("\n")}`,
+        config: { responseMimeType: "application/json", responseSchema: WEB_PRODUCT_RESPONSE_SCHEMA, temperature: 0.1, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
+      });
+      let webParsed: unknown;
+      try { webParsed = structured.text ? JSON.parse(structured.text) : null; }
+      catch { return Response.json({ error: "Google found product pages but their label details could not be read reliably. Upload the back ingredient panel instead." }, { status: 422 }); }
+      const exactMatch = typeof webParsed === "object" && webParsed !== null && "exactProductMatch" in webParsed && webParsed.exactProductMatch === true;
+      if (!exactMatch) return Response.json({ error: "Google couldn't confirm this exact Indian product variant. I won't use a similar product's ingredients; upload the back label for a reliable read." }, { status: 422 });
+      const webExtraction = normalizeExtraction({ products: (webParsed as Record<string, unknown>).products }, input.mode);
+      if (webExtraction.products.length === 0 || webExtraction.products.some((product) => product.ingredients.length === 0 || product.confidence < 0.7)) return Response.json({ error: "Google couldn't verify a readable ingredient list for this exact variant. Upload the back label for a reliable read." }, { status: 422 });
+      const result = runEngine(webExtraction, input.profile, input.language);
+      return Response.json(await attachSwapImages({ ...result, webResearch: { summary: researchResponse.text, sources } }));
+    }
+
+    if (imageStatus !== "food_label") return Response.json({ error: "I couldn't confirm a packaged food in this photo. Try a clearer picture of the front of the product." }, { status: 422 });
+    if (extraction.products.some((product) => product.ingredients.length === 0)) return Response.json({ error: "The ingredient list isn't readable enough to verify the product. Please upload a clear photo of the back label." }, { status: 422 });
+    return Response.json(await attachSwapImages(runEngine(extraction, input.profile, input.language)));
   } catch (error) {
     console.error("CleanShelf analysis failed", error);
     const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 500;

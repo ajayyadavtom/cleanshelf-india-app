@@ -70,6 +70,11 @@ export type ReplacementCart = {
   }>;
 };
 
+export type WebResearch = {
+  summary: string;
+  sources: Array<{ title: string; url: string }>;
+};
+
 /** Public API response. Every judgement and regulatory badge is produced locally. */
 export type AnalysisResult = {
   mode: AnalysisMode;
@@ -86,4 +91,5 @@ export type AnalysisResult = {
   };
   replacementCart: ReplacementCart;
   products: ProductAnalysis[];
+  webResearch?: WebResearch;
 };

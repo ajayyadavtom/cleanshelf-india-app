@@ -1,5 +1,6 @@
 export type Craving = "crunchy_salty" | "sweet" | "crispy" | "drink";
 export type SwapGroup = "biscuit" | "chocolate";
+export type SwapImagePreview = { imageUrl: string; productUrl: string; productName: string; brand: string };
 export type NaturalSwap = {
   id: string;
   name: string;
@@ -13,6 +14,7 @@ export type NaturalSwap = {
   preservativeFree: boolean;
   shelfAvailability: string;
   tags: string[];
+  productImage?: SwapImagePreview;
 };
 
 /** Representative Indian retail prices; regional and retailer prices vary. */

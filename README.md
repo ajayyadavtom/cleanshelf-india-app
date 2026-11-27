@@ -9,7 +9,9 @@ A mobile-first Next.js app for reading Indian packaged-food labels and auditing 
 3. Copy `.env.example` to `.env.local` and set `GEMINI_API_KEY` to a Google Gemini API key. The two demo buttons work without a key.
 4. Run `npm run dev` and open `http://localhost:3000`.
 
-The analysis route defaults to `gemini-3.5-flash-lite`, a multimodal model that supports structured outputs. Google currently restricts `gemini-2.5-flash` for new projects; set `GEMINI_MODEL` only if your project has access to a different supported model.
+The analysis route defaults to `gemini-3.8-flash`, which accepts image input and supports structured JSON output. It uses low thinking because this model does not support the `minimal` setting. Configure `GEMINI_MODEL` in your server environment if your project uses another supported multimodal model.
+
+For Vercel, add `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3.8-flash` under **Project Settings → Environment Variables**, apply them to Production, then redeploy. `.env.local` is only for local development and is intentionally excluded from Git.
 
 Production: `npm run build`, then `npm start`.
 

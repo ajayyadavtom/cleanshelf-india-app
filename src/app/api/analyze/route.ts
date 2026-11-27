@@ -58,14 +58,14 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: buildImagePrompt(input.mode, input.language, input.profile) }, { inlineData: { mimeType: input.mimeType, data: input.bytes.toString("base64") } }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: ANALYSIS_RESPONSE_SCHEMA,
         temperature: 0.1,
         maxOutputTokens: 4096,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     });
 
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("CleanShelf analysis failed", error);
     const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 500;
-    if (status === 401 || status === 403) return Response.json({ error: "Gemini rejected the API key. Check that it is active and has Gemini API access." }, { status: 503 });
+    if (status === 401 || status === 403) return Response.json({ error: "Gemini rejected the server API key. Add an active Google AI Studio Gemini API key as GEMINI_API_KEY in Vercel, then redeploy." }, { status: 503 });
     if (status === 404) return Response.json({ error: "The configured Gemini model is unavailable to this project. Check GEMINI_MODEL and the model's project access." }, { status: 503 });
     if (status === 429) return Response.json({ error: "Gemini's quota or request limit has been reached. Wait for the quota reset or review the project's API limits and billing." }, { status: 429 });
     if (status === 503) return Response.json({ error: "Gemini is temporarily at capacity. Please try again in a few minutes." }, { status: 503 });

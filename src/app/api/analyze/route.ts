@@ -75,7 +75,8 @@ export async function POST(request: Request) {
       response = await ai.models.generateContent({ model: primaryModel, ...modelRequest });
     } catch (primaryError) {
       const status = typeof primaryError === "object" && primaryError !== null && "status" in primaryError && typeof primaryError.status === "number" ? primaryError.status : 0;
-      if (![500, 502, 503, 504].includes(status) || fallbackModel === primaryModel) throw primaryError;
+      const retryableSdkError = primaryError instanceof Error && primaryError.message.startsWith("Retryable HTTP Error:");
+      if ((!retryableSdkError && ![500, 502, 503, 504].includes(status)) || fallbackModel === primaryModel) throw primaryError;
       console.warn(`Gemini model ${primaryModel} unavailable; retrying with ${fallbackModel}.`);
       response = await ai.models.generateContent({ model: fallbackModel, ...modelRequest });
     }
@@ -98,10 +99,11 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("CleanShelf analysis failed", error);
     const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 500;
+    const retryableSdkError = error instanceof Error && error.message.startsWith("Retryable HTTP Error:");
     if (status === 401 || status === 403) return Response.json({ error: "Gemini rejected the server API key. Add an active Google AI Studio Gemini API key as GEMINI_API_KEY in Vercel, then redeploy." }, { status: 503 });
     if (status === 404) return Response.json({ error: "The configured Gemini model is unavailable to this project. Check GEMINI_MODEL and the model's project access." }, { status: 503 });
     if (status === 429) return Response.json({ error: "Gemini's quota or request limit has been reached. Wait for the quota reset or review the project's API limits and billing." }, { status: 429 });
-    if (status === 503) return Response.json({ error: "Gemini is temporarily at capacity. Please try again in a few minutes." }, { status: 503 });
+    if (status === 503 || retryableSdkError) return Response.json({ error: "Gemini's image-analysis models are temporarily unavailable. Please try again in a few minutes." }, { status: 503 });
     if (status === 400) return Response.json({ error: "Gemini rejected this image request. Check the image format and model configuration." }, { status: 422 });
     if (status === 0) return Response.json({ error: "The image-analysis request timed out or lost its connection to Gemini. Try again with a clear, smaller photo." }, { status: 502 });
     return Response.json({ error: "Gemini could not analyze this image. Check your connection and try again." }, { status: 502 });
